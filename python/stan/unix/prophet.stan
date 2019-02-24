@@ -23,62 +23,98 @@ functions {
 
   // Logistic trend functions
 
-  vector logistic_gamma(real k, real m, vector delta, vector t_change, int S) {
-    vector[S] gamma;  // adjusted offsets, for piecewise continuity
-    vector[S + 1] k_s;  // actual rate in each segment
+  vector logistic_gamma(
+    vector k,
+    vector m,
+    matrix delta,
+    vector t_change,
+    int S,
+    int N
+  ) {
+    matrix[S,N] gamma;  // adjusted offsets, for piecewise continuity
+    // matrix[S+1,N] k_s;  // actual rate in each segment
+    real k_pr;
     real m_pr;
 
     // Compute the rate in each segment
-    k_s = append_row(k, k + cumulative_sum(delta));
+    // for (j in 1:N) {
+    //  k_s[1,j] = k[j]
+    //  for (i in 1:S) {
+    //    k_s[i+1,j] = k_s[i,j] + delta[i,j]
+    //  }
+    // }
+    //
+    // Piecewise offsets
+    // for (j in 1:N) {
+    //   m_pr = m[j]; // The offset in the previous segment
+    //   for (i in 1:S) {
+    //     gamma[i,j] = (t_change[i] - m_pr) * (1 - k_s[i,j] / k_s[i+1,j]);
+    //     m_pr = m_pr + gamma[i,j];  // update for the next segment
+    //   }
+    // }
 
     // Piecewise offsets
-    m_pr = m; // The offset in the previous segment
-    for (i in 1:S) {
-      gamma[i] = (t_change[i] - m_pr) * (1 - k_s[i] / k_s[i + 1]);
-      m_pr = m_pr + gamma[i];  // update for the next segment
+    for (j in 1:N) {
+      k_pr = k[j]; // The rate in the previous segment
+      m_pr = m[j]; // The offset in the previous segment
+      for (i in 1:S) {
+        gamma[i,j] = (t_change[i] - m_pr) * (1 - k_pr / (k_pr + delta[i,j]));
+        k_pr = k_pr + delta[i,j];  // update for the next segment
+        m_pr = m_pr + gamma[i,j];  // update for the next segment
+      }
     }
     return gamma;
   }
 
   vector logistic_trend(
-    real k,
-    real m,
-    vector delta,
+    vector k,
+    vector m,
+    matrix delta,
     vector t,
     vector cap,
     matrix A,
     vector t_change,
-    int S
+    int T,
+    int S,
+    int N
   ) {
-    vector[S] gamma;
+    matrix[S,N] gamma;
 
-    gamma = logistic_gamma(k, m, delta, t_change, S);
-    return cap .* inv_logit((k + A * delta) .* (t - (m + A * gamma)));
+    gamma = logistic_gamma(k, m, delta, t_change, S, N);
+    return rep_matrix(cap, N) .* inv_logit(
+      (rep_matrix(k', T) + A * delta) .* (rep_matrix(t, N) - (rep_matrix(m', T) + A * gamma))
+    );
   }
 
   // Linear trend function
 
   vector linear_trend(
-    real k,
-    real m,
-    vector delta,
+    vector k,
+    vector m,
+    matrix delta,
     vector t,
     matrix A,
-    vector t_change
+    vector t_change,
+    int T,
+    int S,
+    int N
   ) {
-    return (k + A * delta) .* t + (m + A * (-t_change .* delta));
+    return (rep_matrix(k', T) + A * delta) .* rep_matrix(t, N)
+            + (rep_matrix(m', T) + A * (-rep_matrix(t_change, N) .* delta));
   }
 }
 
 data {
   int T;                // Number of time periods
+  int<lower=1> N;       // Number of independent variables
   int<lower=1> K;       // Number of regressors
   vector[T] t;          // Time
   vector[T] cap;        // Capacities for logistic trend
-  vector[T] y;          // Time series
+  vector[T] y;          // Time series for dependent variable
+  matrix[T,N] X;        // Time series for independent variables
   int S;                // Number of changepoints
   vector[S] t_change;   // Times of trend changepoints
-  matrix[T,K] X;        // Regressors
+  matrix[T,K] Z;        // Regressors
   vector[K] sigmas;     // Scale on seasonality prior
   real<lower=0> tau;    // Scale on changepoints prior
   int trend_indicator;  // 0 for linear, 1 for logistic
@@ -92,11 +128,11 @@ transformed data {
 }
 
 parameters {
-  real k;                   // Base trend growth rate
-  real m;                   // Trend offset
-  vector[S] delta;          // Trend rate adjustments
+  vector[N] k;              // Base trend growth rate
+  vector[N] m;              // Trend offset
+  matrix[S,N] delta;        // Trend rate adjustments
   real<lower=0> sigma_obs;  // Observation noise
-  vector[K] beta;           // Regressor coefficients
+  matrix[K,N] beta;         // Regressor coefficients
 }
 
 model {
@@ -110,16 +146,20 @@ model {
   // Likelihood
   if (trend_indicator == 0) {
     y ~ normal(
-      linear_trend(k, m, delta, t, A, t_change)
-      .* (1 + X * (beta .* s_m))
-      + X * (beta .* s_a),
+      (
+        linear_trend(k, m, delta, t, A, t_change, T, S, N)
+        .* (1 + Z * (beta .* rep_matrix(s_m, N)))
+        + Z * (beta .* rep_matrix(s_a, N))
+      ) * X,
       sigma_obs
     );
   } else if (trend_indicator == 1) {
     y ~ normal(
-      logistic_trend(k, m, delta, t, cap, A, t_change, S)
-      .* (1 + X * (beta .* s_m))
-      + X * (beta .* s_a),
+      (
+        logistic_trend(k, m, delta, t, cap, A, t_change, T, S, N)
+        .* (1 + Z * (beta .* rep_matrix(s_m, N)))
+        + Z * (beta .* rep_matrix(s_a, N))
+      ) * X,
       sigma_obs
     );
   }

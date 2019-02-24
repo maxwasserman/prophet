@@ -726,7 +726,7 @@ class Prophet(object):
             prior_scales.append(props['prior_scale'])
             modes[props['mode']].append(name)
 
-        # Dummy to prevent empty X
+        # Dummy to prevent empty Z
         if len(seasonal_features) == 0:
             seasonal_features.append(
                 pd.DataFrame({'zeros': np.zeros(df.shape[0])}))
@@ -1038,7 +1038,7 @@ class Prophet(object):
             'y': history['y_scaled'],
             't': history['t'],
             't_change': self.changepoints_t,
-            'X': seasonal_features,
+            'Z': seasonal_features,
             'sigmas': prior_scales,
             'tau': self.changepoint_prior_scale,
             'trend_indicator': int(self.growth == 'logistic'),
@@ -1254,12 +1254,12 @@ class Prophet(object):
         lower_p = 100 * (1.0 - self.interval_width) / 2
         upper_p = 100 * (1.0 + self.interval_width) / 2
 
-        X = seasonal_features.values
+        Z = seasonal_features.values
         data = {}
         for component in component_cols.columns:
             beta_c = self.params['beta'] * component_cols[component].values
 
-            comp = np.matmul(X, beta_c.transpose())
+            comp = np.matmul(Z, beta_c.transpose())
             if component in self.component_modes['additive']:
                 comp *= self.y_scale
             data[component] = np.nanmean(comp, axis=1)
@@ -1369,14 +1369,14 @@ class Prophet(object):
         trend = self.sample_predictive_trend(df, iteration)
 
         beta = self.params['beta'][iteration]
-        Xb_a = np.matmul(seasonal_features.values, beta * s_a.values) * self.y_scale
-        Xb_m = np.matmul(seasonal_features.values, beta * s_m.values)
+        Zb_a = np.matmul(seasonal_features.values, beta * s_a.values) * self.y_scale
+        Zb_m = np.matmul(seasonal_features.values, beta * s_m.values)
 
         sigma = self.params['sigma_obs'][iteration]
         noise = np.random.normal(0, sigma, df.shape[0]) * self.y_scale
 
         return pd.DataFrame({
-            'yhat': trend * (1 + Xb_m) + Xb_a + noise,
+            'yhat': trend * (1 + Zb_m) + Zb_a + noise,
             'trend': trend
         })
 

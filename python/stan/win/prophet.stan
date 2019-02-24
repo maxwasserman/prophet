@@ -42,7 +42,7 @@ functions {
     }
     return gamma;
   }
-  
+
   real[] logistic_trend(
     real k,
     real m,
@@ -99,7 +99,7 @@ data {
   real y[T];            // Time series
   int S;                // Number of changepoints
   real t_change[S];     // Times of trend changepoints
-  real X[T,K];         // Regressors
+  real Z[T,K];          // Regressors
   vector[K] sigmas;     // Scale on seasonality prior
   real<lower=0> tau;    // Scale on changepoints prior
   int trend_indicator;  // 0 for linear, 1 for logistic
@@ -139,7 +139,7 @@ transformed parameters {
 
   for (i in 1:T) {
     Y[i] = (
-      trend[i] * (1 + dot_product(X[i], beta_m)) + dot_product(X[i], beta_a)
+      trend[i] * (1 + dot_product(Z[i], beta_m)) + dot_product(Z[i], beta_a)
     );
   }
 }

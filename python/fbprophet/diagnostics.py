@@ -104,17 +104,20 @@ def cross_validation(model, horizon, period=None, initial=None):
         # Calculate yhat
         index_predicted = (df['ds'] > cutoff) & (df['ds'] <= cutoff + horizon)
         # Get the columns for the future dataframe
-        columns = ['ds']
+        columns = ['ds'] + m.x_cols
         if m.growth == 'logistic':
             columns.append('cap')
             if m.logistic_floor:
                 columns.append('floor')
         columns.extend(m.extra_regressors.keys())
-        yhat = m.predict(df[index_predicted][columns])
+        yhat = m.predict(df.loc[index_predicted,columns])
+        hat_cols = ['ds', 'yhat']
+        if 'yhat_lower' in yhat and 'yhat_upper' in yhat:
+            hat_cols += ['yhat_lower', 'yhat_upper']
         # Merge yhat(predicts), y(df, original data) and cutoff
         predicts.append(pd.concat([
-            yhat[['ds', 'yhat', 'yhat_lower', 'yhat_upper']],
-            df[index_predicted][['y']].reset_index(drop=True),
+            yhat[hat_cols],
+            df.loc[index_predicted,['y']].reset_index(drop=True),
             pd.DataFrame({'cutoff': [cutoff] * len(yhat)})
         ], axis=1))
 
@@ -351,5 +354,7 @@ def coverage(df, w):
     -------
     Array of coverages.
     """
+    if 'yhat_lower' not in df or 'yhat_upper' not in df:
+        raise ValueError('Uncertainty column(s) missing in Dataframe.')
     is_covered = (df['y'] >= df['yhat_lower']) & (df['y'] <= df['yhat_upper'])
     return rolling_mean(is_covered.values, w)

@@ -123,42 +123,42 @@ def plot_components(
     npanel = len(components)
 
     figsize = figsize if figsize else (9, 3 * npanel)
-    fig, axes = plt.subplots(npanel, 1, facecolor='w', figsize=figsize)
-
-    if npanel == 1:
-        axes = [axes]
+    fig, axes = plt.subplots(npanel, m.nx, facecolor='w',
+                             figsize=figsize, squeeze=False)
 
     multiplicative_axes = []
 
-    for ax, plot_name in zip(axes, components):
-        if plot_name == 'trend':
-            plot_forecast_component(
-                m=m, fcst=fcst, name='trend', ax=ax, uncertainty=uncertainty,
-                plot_cap=plot_cap,
-            )
-        elif plot_name == 'weekly':
-            plot_weekly(
-                m=m, ax=ax, uncertainty=uncertainty, weekly_start=weekly_start,
-            )
-        elif plot_name == 'yearly':
-            plot_yearly(
-                m=m, ax=ax, uncertainty=uncertainty, yearly_start=yearly_start,
-            )
-        elif plot_name in [
-            'holidays',
-            'extra_regressors_additive',
-            'extra_regressors_multiplicative',
-        ]:
-            plot_forecast_component(
-                m=m, fcst=fcst, name=plot_name, ax=ax, uncertainty=uncertainty,
-                plot_cap=False,
-            )
-        else:
-            plot_seasonality(
-                m=m, name=plot_name, ax=ax, uncertainty=uncertainty,
-            )
-        if plot_name in m.component_modes['multiplicative']:
-            multiplicative_axes.append(ax)
+    for i, plot_name in enumerate(components):
+        for j, x in enumerate(m.x_cols):
+            ax = axes[i,j]
+            if plot_name == 'trend':
+                plot_forecast_component(
+                    m=m, fcst=fcst, name='trend', ax=ax, uncertainty=uncertainty,
+                    plot_cap=plot_cap,
+                )
+            elif plot_name == 'weekly':
+                plot_weekly(
+                    m=m, ax=ax, uncertainty=uncertainty, weekly_start=weekly_start,
+                )
+            elif plot_name == 'yearly':
+                plot_yearly(
+                    m=m, ax=ax, uncertainty=uncertainty, yearly_start=yearly_start,
+                )
+            elif plot_name in [
+                'holidays',
+                'extra_regressors_additive',
+                'extra_regressors_multiplicative',
+            ]:
+                plot_forecast_component(
+                    m=m, fcst=fcst, name=plot_name, ax=ax, uncertainty=uncertainty,
+                    plot_cap=False,
+                )
+            else:
+                plot_seasonality(
+                    m=m, name=plot_name, ax=ax, uncertainty=uncertainty,
+                )
+            if plot_name in m.component_modes['multiplicative']:
+                multiplicative_axes.append(ax)
 
     fig.tight_layout()
     # Reset multiplicative axes labels after tight_layout adjustment
@@ -197,7 +197,7 @@ def plot_forecast_component(
         artists += ax.plot(fcst_t, fcst['cap'], ls='--', c='k')
     if m.logistic_floor and 'floor' in fcst and plot_cap:
         ax.plot(fcst_t, fcst['floor'], ls='--', c='k')
-    if uncertainty:
+    if uncertainty and name + '_lower' in fcst and name + '_upper' in fcst:
         artists += [ax.fill_between(
             fcst_t, fcst[name + '_lower'], fcst[name + '_upper'],
             color='#0072B2', alpha=0.2)]
@@ -259,7 +259,7 @@ def plot_weekly(m, ax=None, uncertainty=True, weekly_start=0, figsize=(10, 6)):
     days = days.weekday_name
     artists += ax.plot(range(len(days)), seas['weekly'], ls='-',
                     c='#0072B2')
-    if uncertainty:
+    if uncertainty and 'weekly_lower' in seas and 'weekly_upper' in seas:
         artists += [ax.fill_between(range(len(days)),
                                     seas['weekly_lower'], seas['weekly_upper'],
                                     color='#0072B2', alpha=0.2)]
@@ -302,7 +302,7 @@ def plot_yearly(m, ax=None, uncertainty=True, yearly_start=0, figsize=(10, 6)):
     seas = m.predict_seasonal_components(df_y)
     artists += ax.plot(
         df_y['ds'].dt.to_pydatetime(), seas['yearly'], ls='-', c='#0072B2')
-    if uncertainty:
+    if uncertainty and 'yearly_lower' in seas and 'yearly_upper' in seas:
         artists += [ax.fill_between(
             df_y['ds'].dt.to_pydatetime(), seas['yearly_lower'],
             seas['yearly_upper'], color='#0072B2', alpha=0.2)]
@@ -348,7 +348,7 @@ def plot_seasonality(m, name, ax=None, uncertainty=True, figsize=(10, 6)):
     seas = m.predict_seasonal_components(df_y)
     artists += ax.plot(df_y['ds'].dt.to_pydatetime(), seas[name], ls='-',
                         c='#0072B2')
-    if uncertainty:
+    if uncertainty and name + '_lower' in seas and name + '_upper' in seas:
         artists += [ax.fill_between(
             df_y['ds'].dt.to_pydatetime(), seas[name + '_lower'],
             seas[name + '_upper'], color='#0072B2', alpha=0.2)]

@@ -1239,7 +1239,7 @@ class Prophet(object):
             indx = (t >= t_s)
             k_t[indx,:] += deltas[s,:]
             m_t[indx,:] += gammas[s,:]
-        return t * k_t + m_t
+        return t.reshape((-1,1)) * k_t + m_t
 
     @staticmethod
     def piecewise_logistic(t, cap, deltas, k, m, changepoint_ts):
@@ -1273,7 +1273,7 @@ class Prophet(object):
             indx = t >= t_s
             k_t[indx,:] += deltas[s,:]
             m_t[indx,:] += gammas[s,:]
-        return cap / (1 + np.exp(-k_t * (t - m_t)))
+        return cap / (1 + np.exp(-k_t * (t.reshape((-1,1)) - m_t)))
 
     def predict_trend(self, df):
         """Predict trend using the prophet model.
@@ -1327,8 +1327,6 @@ class Prophet(object):
             # if component in self.component_modes['additive']:
             #     comp *= self.y_scale
             data[component] = comp
-
-            # Figure this **** out later
             # data[component + '_lower'] = np.nanpercentile(
             #     comp, lower_p, axis=1,
             # )
@@ -1413,9 +1411,9 @@ class Prophet(object):
         for key in ['yhat', 'coef', 'trend']:
             for q in p:
                 ptile = np.nanpercentile(sim_values[key], p[q], axis=0)
-                if lower.shape[1] == 1:
+                if ptile.shape[1] == 1:
                     colnames = ['{}_{}'.format(key,q)]
-                elif lower.shape[1] == self.nx:
+                else:
                     colnames = ['{}_{}_{}'.format(key,x,q) for x in self.x_cols]
                 dframes.append(pd.DataFrame(data=ptile, columns=colnames))
 
@@ -1444,7 +1442,7 @@ class Prophet(object):
         Zb_m = np.matmul(seasonal_features.values, beta * s_m)
 
         sigma = self.params['sigma_obs']#[iteration]
-        noise = np.random.normal(0, sigma, df.shape[0]) #* self.y_scale
+        noise = np.random.normal(0, sigma, (df.shape[0], self.nx)) #* self.y_scale
 
         coef = trend * (1 + Zb_m) + Zb_a + noise
         yhat = (coef * (df[self.x_cols].values / self.x_scales)).sum(axis=1) * self.y_scale

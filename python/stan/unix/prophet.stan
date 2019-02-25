@@ -23,7 +23,7 @@ functions {
 
   // Logistic trend functions
 
-  vector logistic_gamma(
+  matrix logistic_gamma(
     vector k,
     vector m,
     matrix delta,
@@ -66,7 +66,7 @@ functions {
     return gamma;
   }
 
-  vector logistic_trend(
+  matrix logistic_trend(
     vector k,
     vector m,
     matrix delta,
@@ -88,7 +88,7 @@ functions {
 
   // Linear trend function
 
-  vector linear_trend(
+  matrix linear_trend(
     vector k,
     vector m,
     matrix delta,
@@ -130,8 +130,8 @@ transformed data {
 parameters {
   vector[N] k;              // Base trend growth rate
   vector[N] m;              // Trend offset
-  matrix[S,N] delta;        // Trend rate adjustments
   real<lower=0> sigma_obs;  // Observation noise
+  matrix[S,N] delta;        // Trend rate adjustments
   matrix[K,N] beta;         // Regressor coefficients
 }
 
@@ -139,28 +139,28 @@ model {
   //priors
   k ~ normal(0, 5);
   m ~ normal(0, 5);
-  delta ~ double_exponential(0, tau);
   sigma_obs ~ normal(0, 0.5);
-  beta ~ normal(0, sigmas);
+  for (j in 1:N) {
+    delta[:,j] ~ double_exponential(0, tau);
+    beta[:,j] ~ normal(0, sigmas);
+  }
 
   // Likelihood
   if (trend_indicator == 0) {
     y ~ normal(
-      (
+      rows_dot_product((
         linear_trend(k, m, delta, t, A, t_change, T, S, N)
         .* (1 + Z * (beta .* rep_matrix(s_m, N)))
         + Z * (beta .* rep_matrix(s_a, N))
-      ) * X,
-      sigma_obs
+      ), X), sigma_obs
     );
   } else if (trend_indicator == 1) {
     y ~ normal(
-      (
+      rows_dot_product((
         logistic_trend(k, m, delta, t, cap, A, t_change, T, S, N)
         .* (1 + Z * (beta .* rep_matrix(s_m, N)))
         + Z * (beta .* rep_matrix(s_a, N))
-      ) * X,
-      sigma_obs
+      ), X), sigma_obs
     );
   }
 }

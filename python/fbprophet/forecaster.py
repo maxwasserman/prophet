@@ -1172,14 +1172,14 @@ class Prophet(object):
         else:
             if df.shape[0] == 0:
                 raise ValueError('Dataframe has no rows.')
-            for x in self.x_cols:
-                if x not in df:
-                    raise ValueError('x column not present in Dataframe.')
             df = self.setup_dataframe(df.copy())
 
         trend = self.predict_trend(df)
         seasonal_components = self.predict_seasonal_components(df)
         intervals = self.predict_uncertainty(df)
+
+        df_trend = pd.DataFrame(data=trend,
+                                columns=['trend_{}'.format(x) for x in self.x_cols])
 
         # Drop columns except ds, cap, floor, and trend
         # cols = ['ds'] + self.x_cols
@@ -1196,14 +1196,16 @@ class Prophet(object):
 
         coef = trend * (1 + seasonal_components['multiplicative_terms']) + \
                     seasonal_components['additive_terms']
-        yhat = (coef * (df[self.x_cols].values / self.x_scales)).sum(axis=1) * self.y_scale
-
-        cols = ['ds'] + self.x_cols
-        df_yhat = pd.DataFrame(data=yhat, columns=['yhat'])
         df_coef = pd.DataFrame(data=coef,
                                columns=['coef_{}'.format(x) for x in self.x_cols])
-        df_trend = pd.DataFrame(data=trend,
-                                columns=['trend_{}'.format(x) for x in self.x_cols])
+
+        if all(x in df for x in self.x_cols):
+            yhat = (coef * (df[self.x_cols].values / self.x_scales)).sum(axis=1) * self.y_scale
+            df_yhat = pd.DataFrame(data=yhat, columns=['yhat'])
+            cols = ['ds'] + self.x_cols
+        else:
+            df_yhat = pd.DataFrame()
+            cols = ['ds']
 
         df2 = pd.concat((df[cols], df_yhat, df_coef, df_trend), axis=1)
         for comp in seasonal_components:
@@ -1358,7 +1360,9 @@ class Prophet(object):
             self.make_all_seasonality_features(df)
         )
 
-        sim_values = {'yhat': [], 'coef': [], 'trend': []}
+        sim_values = {'coef': [], 'trend': []}
+        if all(x in df for x in self.x_cols):
+            sim_values.update({'yhat': []})
         for i in range(n_iterations):
             for _j in range(samp_per_iter):
                 sim = self.sample_model(
@@ -1408,7 +1412,7 @@ class Prophet(object):
              'upper': 100 * (1.0 + self.interval_width) / 2}
 
         dframes = []
-        for key in ['yhat', 'coef', 'trend']:
+        for key in sim_values:
             for q in p:
                 ptile = np.nanpercentile(sim_values[key], p[q], axis=0)
                 if ptile.shape[1] == 1:
@@ -1445,13 +1449,14 @@ class Prophet(object):
         noise = np.random.normal(0, sigma, (df.shape[0], self.nx)) #* self.y_scale
 
         coef = trend * (1 + Zb_m) + Zb_a + noise
-        yhat = (coef * (df[self.x_cols].values / self.x_scales)).sum(axis=1) * self.y_scale
 
-        return {
-            'yhat': yhat.reshape((-1,1)),
-            'coef': coef,
-            'trend': trend
-        }
+        sim = {'coef': coef, 'trend': trend}
+
+        if all(x in df for x in self.x_cols):
+            yhat = (coef * (df[self.x_cols].values / self.x_scales)).sum(axis=1) * self.y_scale
+            sim.update({'yhat': yhat.reshape((-1,1))})
+
+        return sim
 
     def sample_predictive_trend(self, df):
         """Simulate the trend using the extrapolated generative model.

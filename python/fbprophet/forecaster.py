@@ -1196,11 +1196,12 @@ class Prophet(object):
 
         coef = trend * (1 + seasonal_components['multiplicative_terms']) + \
                     seasonal_components['additive_terms']
+        # coef = coef * self.y_scale / self.x_scales
         df_coef = pd.DataFrame(data=coef,
                                columns=['coef_{}'.format(x) for x in self.x_cols])
 
         if all(x in df for x in self.x_cols):
-            yhat = (coef * (df[self.x_cols].values / self.x_scales)).sum(axis=1) * self.y_scale
+            yhat = (coef * df[self.x_cols].values).sum(axis=1)
             df_yhat = pd.DataFrame(data=yhat, columns=['yhat'])
             cols = ['ds'] + self.x_cols
         else:
@@ -1301,7 +1302,7 @@ class Prophet(object):
                 t, cap, deltas, k, m, self.changepoints_t)
 
         # return trend * self.y_scale + df['floor']
-        return trend
+        return trend * self.y_scale / self.x_scales
 
     def predict_seasonal_components(self, df):
         """Predict seasonality components, holidays, and added regressors.
@@ -1326,8 +1327,8 @@ class Prophet(object):
             beta_c = self.params['beta'] * component_cols[[component]].values
 
             comp = np.matmul(Z, beta_c)
-            # if component in self.component_modes['additive']:
-            #     comp *= self.y_scale
+            if component in self.component_modes['additive']:
+                comp = comp * self.y_scale / self.x_scales
             data[component] = comp
             # data[component + '_lower'] = np.nanpercentile(
             #     comp, lower_p, axis=1,
@@ -1442,18 +1443,18 @@ class Prophet(object):
         trend = self.sample_predictive_trend(df)
 
         beta = self.params['beta']#[iteration]
-        Zb_a = np.matmul(seasonal_features.values, beta * s_a) #* self.y_scale
+        Zb_a = np.matmul(seasonal_features.values, beta * s_a) * self.y_scale / self.x_scales
         Zb_m = np.matmul(seasonal_features.values, beta * s_m)
 
         sigma = self.params['sigma_obs']#[iteration]
-        noise = np.random.normal(0, sigma, (df.shape[0], self.nx)) #* self.y_scale
+        noise = np.random.normal(0, sigma, (df.shape[0], self.nx)) * self.y_scale / self.x_scales
 
-        coef = trend * (1 + Zb_m) + Zb_a + noise
+        coef = (trend * (1 + Zb_m) + Zb_a + noise) #* self.y_scale / self.x_scales
 
         sim = {'coef': coef, 'trend': trend}
 
         if all(x in df for x in self.x_cols):
-            yhat = (coef * (df[self.x_cols].values / self.x_scales)).sum(axis=1) * self.y_scale
+            yhat = (coef * df[self.x_cols].values).sum(axis=1)
             sim.update({'yhat': yhat.reshape((-1,1))})
 
         return sim
@@ -1508,7 +1509,7 @@ class Prophet(object):
                                             changepoint_ts)
 
         # return trend * self.y_scale + df['floor']
-        return trend
+        return trend * self.y_scale / self.x_scales
 
     def make_future_dataframe(self, periods, freq='D', include_history=True):
         """Simulate the trend using the extrapolated generative model.

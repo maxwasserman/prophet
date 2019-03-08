@@ -947,16 +947,16 @@ class Prophet(object):
         sdf = df.dropna().sort_values('ds')
 
         nx = len(x_cols)
-        y0 = sdf['y_scaled'].iloc[:nx].values
-        X0 = sdf[[x+'_scaled' for x in x_cols]].drop_duplicates().iloc[:nx].values
-        y1 = sdf['y_scaled'].iloc[-nx:].values
-        X1 = sdf[[x+'_scaled' for x in x_cols]].drop_duplicates().iloc[-nx:].values
-        a0 = np.matmul(np.linalg.inv(X0), y0)
-        a1 = np.matmul(np.linalg.inv(X1), y1)
+        y0 = sdf['y_scaled'].iloc[:5*nx].values
+        X0 = sdf[[x+'_scaled' for x in x_cols]].iloc[:5*nx].values
+        y1 = sdf['y_scaled'].iloc[-5*nx:].values
+        X1 = sdf[[x+'_scaled' for x in x_cols]].iloc[-5*nx:].values
+        a0 = np.linalg.lstsq(X0, y0, None)[0]
+        a1 = np.linalg.lstsq(X1, y1, None)[0]
 
-        T = sdf['t'].iloc[-1] - sdf['t'].iloc[0]
+        T = sdf['t'].iloc[-5*nx:].mean() - sdf['t'].iloc[:5*nx].mean()
         k = (a1 - a0) / T
-        m = a0 - k * sdf['t'].iloc[0]
+        m = a0 - k * sdf['t'].iloc[:5*nx].mean()
         return (k, m)
 
     @staticmethod
@@ -978,20 +978,21 @@ class Prophet(object):
         function.
         """
         sdf = df.dropna().sort_values('ds')
+
         # i0, i1 = df['ds'].idxmin(), df['ds'].idxmax()
         nx = len(x_cols)
-        y0 = sdf['y_scaled'].iloc[:nx].values
-        X0 = sdf[[x+'_scaled' for x in x_cols]].iloc[:nx].values
-        y1 = sdf['y_scaled'].iloc[-nx:].values
-        X1 = sdf[[x+'_scaled' for x in x_cols]].iloc[-nx:].values
-        a0 = np.matmul(np.linalg.inv(X0), y0)
-        a1 = np.matmul(np.linalg.inv(X1), y1)
+        y0 = sdf['y_scaled'].iloc[:5*nx].values
+        X0 = sdf[[x+'_scaled' for x in x_cols]].iloc[:5*nx].values
+        y1 = sdf['y_scaled'].iloc[-5*nx:].values
+        X1 = sdf[[x+'_scaled' for x in x_cols]].iloc[-5*nx:].values
+        a0 = np.linalg.lstsq(X0, y0, None)[0]
+        a1 = np.linalg.lstsq(X1, y1, None)[0]
 
-        T = sdf['t'].iloc[-1] - sdf['t'].iloc[0]
+        T = sdf['t'].iloc[-5*nx:].mean() - sdf['t'].iloc[:5*nx].mean()
 
         # Force valid values, in case y > cap or y < 0
-        C0 = sdf['cap_scaled'].iloc[0]
-        C1 = sdf['cap_scaled'].iloc[-1]
+        C0 = sdf['cap_scaled'].iloc[:5*nx].mean()
+        C1 = sdf['cap_scaled'].iloc[-5*nx:].mean()
         b0 = np.minimum(0.01*C0/2, np.minimum(0.99*C0/2, np.abs(a0)))
         b1 = np.minimum(0.01*C1/2, np.minimum(0.99*C1/2, np.abs(a1)))
 

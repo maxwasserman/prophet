@@ -944,13 +944,13 @@ class Prophet(object):
         A tuple (k, m) with the rate (k) and offset (m) of the linear growth
         function.
         """
-        sdf = df.sort_values('ds')
+        sdf = df.dropna().sort_values('ds')
 
         nx = len(x_cols)
         y0 = sdf['y_scaled'].iloc[:nx].values
-        X0 = sdf[[x+'_scaled' for x in x_cols]].iloc[:nx].values
+        X0 = sdf[[x+'_scaled' for x in x_cols]].drop_duplicates().iloc[:nx].values
         y1 = sdf['y_scaled'].iloc[-nx:].values
-        X1 = sdf[[x+'_scaled' for x in x_cols]].iloc[-nx:].values
+        X1 = sdf[[x+'_scaled' for x in x_cols]].drop_duplicates().iloc[-nx:].values
         a0 = np.matmul(np.linalg.inv(X0), y0)
         a1 = np.matmul(np.linalg.inv(X1), y1)
 
@@ -977,7 +977,7 @@ class Prophet(object):
         A tuple (k, m) with the rate (k) and offset (m) of the logistic growth
         function.
         """
-        sdf = df.sort_values('ds')
+        sdf = df.dropna().sort_values('ds')
         # i0, i1 = df['ds'].idxmin(), df['ds'].idxmax()
         nx = len(x_cols)
         y0 = sdf['y_scaled'].iloc[:nx].values

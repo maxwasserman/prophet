@@ -1114,19 +1114,19 @@ class Prophet(object):
             self.params['sigma_obs'] = 1e-9
             for par in self.params:
                 self.params[par] = np.array([self.params[par]])
-        # elif self.mcmc_samples > 0:
-        #     args = dict(
-        #         data=dat,
-        #         init=stan_init,
-        #         iter=self.mcmc_samples,
-        #     )
-        #     args.update(kwargs)
-        #     stan_fit = model.sampling(**args)
-        #     for par in stan_fit.model_pars:
-        #         self.params[par] = stan_fit[par]
-        #         # Shape vector parameters
-        #         # if par in ['delta', 'beta'] and len(self.params[par].shape) < 2:
-        #         #     self.params[par] = self.params[par].reshape((-1, 1))
+        elif self.mcmc_samples > 0:
+            args = dict(
+                data=dat,
+                init=stan_init,
+                iter=self.mcmc_samples,
+            )
+            args.update(kwargs)
+            stan_fit = model.sampling(**args)
+            for par in stan_fit.model_pars:
+                self.params[par] = stan_fit[par]
+                # Shape vector parameters
+                # if par in ['delta', 'beta'] and len(self.params[par].shape) < 2:
+                #     self.params[par] = self.params[par].reshape((-1, 1))
         else:
             args = dict(
                 data=dat,
